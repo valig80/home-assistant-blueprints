@@ -1,0 +1,78 @@
+blueprint:
+  name: Interleave Two Switches (with 15s Timeout)
+  description: >
+    Ensures only one of two switches can be ON at a time. When one is turned ON,
+    the other is turned OFF. Also, the switch that was turned ON will automatically
+    turn OFF after 15 seconds.
+  domain: automation
+  input:
+    switch_1:
+      name: Switch 1
+      selector:
+        entity:
+          domain: switch
+    switch_2:
+      name: Switch 2
+      selector:
+        entity:
+          domain: switch
+
+trigger:
+  - platform: state
+    entity_id: !input switch_1
+    to: 'on'
+    id: switch_1_on
+  - platform: state
+    entity_id: !input switch_2
+    to: 'on'
+    id: switch_2_on
+
+condition: []
+
+action:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id: switch_1_on
+        sequence:
+          - if:
+              - condition: state
+                entity_id: !input switch_2
+                state: 'on'
+            then:
+              - service: switch.turn_off
+                target:
+                  entity_id: !input switch_2
+          - delay: "00:00:15"
+          - if:
+              - condition: state
+                entity_id: !input switch_1
+                state: 'on'
+            then:
+              - service: switch.turn_off
+                target:
+                  entity_id: !input switch_1
+
+      - conditions:
+          - condition: trigger
+            id: switch_2_on
+        sequence:
+          - if:
+              - condition: state
+                entity_id: !input switch_1
+                state: 'on'
+            then:
+              - service: switch.turn_off
+                target:
+                  entity_id: !input switch_1
+          - delay: "00:00:15"
+          - if:
+              - condition: state
+                entity_id: !input switch_2
+                state: 'on'
+            then:
+              - service: switch.turn_off
+                target:
+                  entity_id: !input switch_2
+mode: restart
+
