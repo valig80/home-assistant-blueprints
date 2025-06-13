@@ -1,0 +1,134 @@
+blueprint:
+  name: Interlocked Switches for Cover Control (Shelly 2PM + Double-Tap Stop)
+  description: >
+    Use two switches to open/close a cover via Shelly 2PM.
+    Includes interlock (only one switch active at a time), auto-off delay, and double-tap stop.
+  domain: automation
+  input:
+    switch_open:
+      name: Switch - Open
+      selector:
+        entity:
+          domain: switch
+    switch_close:
+      name: Switch - Close
+      selector:
+        entity:
+          domain: switch
+    cover_target:
+      name: Cover Entity
+      selector:
+        entity:
+          domain: cover
+    off_delay:
+      name: Auto-Off Delay
+      description: Time in seconds before turning off the switch and (optionally) stopping the cover.
+      default: 20
+      selector:
+        number:
+          min: 1
+          max: 120
+          unit_of_measurement: seconds
+          mode: slider
+    stop_cover:
+      name: Stop cover after delay
+      description: Also stop the cover after delay (useful if your motor does not auto-stop).
+      default: false
+      selector:
+        boolean:
+
+mode: restart
+
+trigger:
+  - platform: state
+    entity_id: !input switch_open
+    to: "on"
+    id: open_trigger
+  - platform: state
+    entity_id: !input switch_close
+    to: "on"
+    id: close_trigger
+  - platform: state
+    entity_id: !input switch_open
+    from: "on"
+    to: "on"
+    id: open_repeat
+  - platform: state
+    entity_id: !input switch_close
+    from: "on"
+    to: "on"
+    id: close_repeat
+
+action:
+  - choose:
+      # Double-tap Open → Stop
+      - conditions:
+          - condition: trigger
+            id: open_repeat
+        sequence:
+          - service: cover.stop_cover
+            target:
+              entity_id: !input cover_target
+          - service: switch.turn_off
+            target:
+              entity_id: !input switch_open
+
+      # Double-tap Close → Stop
+      - conditions:
+          - condition: trigger
+            id: close_repeat
+        sequence:
+          - service: cover.stop_cover
+            target:
+              entity_id: !input cover_target
+          - service: switch.turn_off
+            target:
+              entity_id: !input switch_close
+
+      # Normal Open Trigger
+      - conditions:
+          - condition: trigger
+            id: open_trigger
+        sequence:
+          - service: switch.turn_off
+            target:
+              entity_id: !input switch_close
+          - service: cover.open_cover
+            target:
+              entity_id: !input cover_target
+          - delay:
+              seconds: !input off_delay
+          - service: switch.turn_off
+            target:
+              entity_id: !input switch_open
+          - if:
+              - condition: template
+                value_template: "{{ iif(input_boolean.stop_cover, true, false) }}"
+            then:
+              - service: cover.stop_cover
+                target:
+                  entity_id: !input cover_target
+
+      # Normal Close Trigger
+      - conditions:
+          - condition: trigger
+            id: close_trigger
+        sequence:
+          - service: switch.turn_off
+            target:
+              entity_id: !input switch_open
+          - service: cover.close_cover
+            target:
+              entity_id: !input cover_target
+          - delay:
+              seconds: !input off_delay
+          - service: switch.turn_off
+            target:
+              entity_id: !input switch_close
+          - if:
+              - condition: template
+                value_template: "{{ iif(input_boolean.stop_cover, true, false) }}"
+            then:
+              - service: cover.stop_cover
+                target:
+                  entity_id: !input cover_target
