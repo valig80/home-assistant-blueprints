@@ -1,0 +1,143 @@
+blueprint:
+  name: Zigbee Switches -> Cover Control (Start / Stop)
+  description: >
+    Controlează o jaluzea folosind două switch-uri Zigbee.
+    
+    OPEN:
+      - dacă jaluzeaua este oprită -> OPEN
+      - dacă jaluzeaua urcă -> STOP
+      - dacă jaluzeaua coboară -> STOP
+
+    CLOSE:
+      - dacă jaluzeaua este oprită -> CLOSE
+      - dacă jaluzeaua coboară -> STOP
+      - dacă jaluzeaua urcă -> STOP
+
+    După fiecare apăsare switch-ul este readus automat pe OFF.
+
+  domain: automation
+
+  input:
+    switch_open:
+      name: Open switch
+      selector:
+        entity:
+          domain: switch
+
+    switch_close:
+      name: Close switch
+      selector:
+        entity:
+          domain: switch
+
+    cover_target:
+      name: Cover
+      selector:
+        entity:
+          domain: cover
+
+mode: single
+
+trigger:
+  - platform: state
+    entity_id: !input switch_open
+    to: "on"
+
+  - platform: state
+    entity_id: !input switch_close
+    to: "on"
+
+variables:
+  switch_open: !input switch_open
+  switch_close: !input switch_close
+  cover: !input cover_target
+
+action:
+  - choose:
+
+      ##################################################################
+      # OPEN BUTTON
+      ##################################################################
+
+      - conditions:
+          - condition: template
+            value_template: >
+              {{ trigger.entity_id == switch_open }}
+
+        sequence:
+
+          - choose:
+
+              - conditions:
+                  - condition: state
+                    entity_id: !input cover_target
+                    state: opening
+                sequence:
+                  - service: cover.stop_cover
+                    target:
+                      entity_id: !input cover_target
+
+              - conditions:
+                  - condition: state
+                    entity_id: !input cover_target
+                    state: closing
+                sequence:
+                  - service: cover.stop_cover
+                    target:
+                      entity_id: !input cover_target
+
+            default:
+              - service: cover.open_cover
+                target:
+                  entity_id: !input cover_target
+
+          - delay:
+              milliseconds: 100
+
+          - service: switch.turn_off
+            target:
+              entity_id: !input switch_open
+
+
+      ##################################################################
+      # CLOSE BUTTON
+      ##################################################################
+
+      - conditions:
+          - condition: template
+            value_template: >
+              {{ trigger.entity_id == switch_close }}
+
+        sequence:
+
+          - choose:
+
+              - conditions:
+                  - condition: state
+                    entity_id: !input cover_target
+                    state: closing
+                sequence:
+                  - service: cover.stop_cover
+                    target:
+                      entity_id: !input cover_target
+
+              - conditions:
+                  - condition: state
+                    entity_id: !input cover_target
+                    state: opening
+                sequence:
+                  - service: cover.stop_cover
+                    target:
+                      entity_id: !input cover_target
+
+            default:
+              - service: cover.close_cover
+                target:
+                  entity_id: !input cover_target
+
+          - delay:
+              milliseconds: 100
+
+          - service: switch.turn_off
+            target:
+              entity_id: !input switch_close
